@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#182b49">
+<title>Household Chores</title>
+<style>
+:root{color-scheme:light;--ink:#182230;--muted:#667085;--line:#e5eaf0;--bg:#f4f7fb;--accent:#3157d5}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg)}
+header{background:#182b49;color:#fff;padding:28px 18px 25px}
+.wrap{max-width:1100px;margin:auto}
+h1{margin:0 0 7px;font-size:clamp(1.55rem,4vw,2.25rem)}
+header p{margin:0;color:#d6e0f1}
+main{max-width:1100px;margin:22px auto;padding:0 16px 36px}
+.today,.settings,.day-card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 4px 14px #15294b0a}
+.today{padding:20px;margin-bottom:18px;display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.eyebrow{text-transform:uppercase;letter-spacing:.08em;font-size:.76rem;font-weight:800;color:var(--muted)}
+.today h2{margin:4px 0;font-size:1.45rem}
+#todayDate{color:var(--muted)}
+.pill{background:#e9efff;color:#2445b4;padding:8px 12px;border-radius:999px;font-weight:800;white-space:nowrap}
+.settings{padding:15px 18px;margin-bottom:22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+label{font-weight:700}
+input[type=date]{padding:9px 10px;border:1px solid #cbd5e1;border-radius:9px;font:inherit}
+button{border:0;border-radius:9px;background:var(--accent);color:white;font:inherit;font-weight:700;padding:10px 14px;cursor:pointer}
+button.secondary{background:#edf1f7;color:#243247}
+.note{color:var(--muted);font-size:.9rem;flex-basis:100%}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}
+.day-card{padding:17px;min-width:0}
+.day-card.current{border:2px solid var(--accent);box-shadow:0 5px 18px #3157d51c}
+.day-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+.day-head h3{margin:0;font-size:1.12rem}
+.today-tag{color:var(--accent);font-size:.75rem;font-weight:900;text-transform:uppercase}
+.date-label{color:var(--muted);font-size:.84rem;margin-top:3px}
+.task{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start;padding:10px 0;border-top:1px solid #eef1f5}
+.task-name{font-size:.92rem}
+.person{background:#f0f3f8;border-radius:7px;padding:4px 8px;font-weight:800;font-size:.84rem;white-space:nowrap}
+.person.none{color:#737e8d;font-weight:600}
+footer{color:var(--muted);font-size:.85rem;text-align:center;padding:20px 0 0}
+@media(max-width:850px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.grid{grid-template-columns:1fr}main{margin-top:14px}.today{align-items:flex-start}}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>Household Chores</h1><p>A repeating 6-day chore schedule for R1, R2, and R3.</p></div></header>
+<main>
+<section class="today" aria-live="polite">
+<div><div class="eyebrow">Today's schedule</div><h2 id="todayHeading">Loading…</h2><div id="todayDate"></div></div>
+<div class="pill" id="cycleBadge">6-day cycle</div>
+</section>
+<section class="settings">
+<label for="startDate">Day 1 date:</label>
+<input id="startDate" type="date">
+<button id="applyDate">Update schedule</button>
+<button class="secondary" id="resetDate">Reset to October 26, 2026</button>
+<div class="note">The schedule uses your device's current local date. Day 1 is October 26, 2026, and the pattern repeats every 6 days.</div>
+</section>
+<section class="grid" id="schedule" aria-label="Six-day chore schedule"></section>
+<footer>“No one” means nobody is assigned to refill water that day. Your chosen start date is saved in this browser.</footer>
+</main>
+<script>
+const DAYS = [
+[["Dishes","R3"],["Rice","R1"],["Ulam","R2"],["Refill water","R2"],["Clean living room and dining room","R1"],["Kitchen","R2"],["Second Floor","R3"],["M Food","R3"]],
+[["Dishes","R1"],["Rice","R2"],["Ulam","R3"],["Refill water","No one"],["Clean living room and dining room","R1"],["Kitchen","R2"],["Second Floor","R3"],["M Food","R2"]],
+[["Dishes","R2"],["Rice","R1"],["Ulam","R3"],["Refill water","No one"],["Clean living room and dining room","R1"],["Kitchen","R2"],["Second Floor","R3"],["M Food","R3"]],
+[["Dishes","R3"],["Rice","R1"],["Ulam","R2"],["Refill water","No one"],["Clean living room and dining room","R1"],["Kitchen","R2"],["Second Floor","R3"],["M Food","R2"]],
+[["Dishes","R1"],["Rice","R2"],["Ulam","R3"],["Refill water","No one"],["Clean living room and dining room","R1"],["Kitchen","R2"],["Second Floor","R3"],["M Food","R3"]],
+[["Dishes","R2"],["Rice","R1"],["Ulam","R3"],["Refill water","R3"],["Clean living room and dining room","R1"],["Kitchen","R2"],["Second Floor","R3"],["M Food","R3"]]
+];
+const BASE_DATE = "2026-10-26";
+const $ = id => document.getElementById(id);
+
+const toDate = value => {
+  const [y, m, d] = value.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+};
+const dateLabel = date => date.toLocaleDateString(undefined, {year:"numeric", month:"short", day:"numeric"});
+const DAY_MS = 86400000;
+
+function getStart(){ return localStorage.getItem("choreStartDate") || BASE_DATE; }
+
+function render(){
+  const startValue = $("startDate").value || BASE_DATE;
+  const start = toDate(startValue);
+  
+  const now = new Date();
+  const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  
+  const diff = Math.round((today - start) / DAY_MS);
+  const index = ((diff % 6) + 6) % 6;
+  
+  $("todayHeading").textContent = `Day ${index + 1}`;
+  $("todayDate").textContent = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toLocaleDateString(undefined, {weekday:"long", year:"numeric", month:"long", day:"numeric"});
+  $("cycleBadge").textContent = diff < 0 ? `Starts in ${Math.abs(diff)} day${Math.abs(diff) === 1 ? "" : "s"}` : `Day ${index + 1} of 6`;
+  
+  const grid = $("schedule");
+  grid.replaceChildren();
+  
+  DAYS.forEach((tasks, i) => {
+    const dateUTC = new Date(start.getTime());
+    dateUTC.setUTCDate(start.getUTCDate() + i);
+    const date = new Date(dateUTC.getUTCFullYear(), dateUTC.getUTCMonth(), dateUTC.getUTCDate());
+    
+    const isCurrent = (i === index && diff >= 0);
+    const card = document.createElement("article");
+    card.className = "day-card" + (isCurrent ? " current" : "");
+    
+    const head = document.createElement("div");
+    head.className = "day-head";
+    const left = document.createElement("div");
+    const title = document.createElement("h3");
+    title.textContent = `Day ${i+1}`;
+    const dateText = document.createElement("div");
+    dateText.className = "date-label";
+    dateText.textContent = dateLabel(date);
+    left.append(title, dateText);
+    head.append(left);
+    
+    if(isCurrent){
+      const tag = document.createElement("span");
+      tag.className = "today-tag";
+      tag.textContent = "Today";
+      head.append(tag);
+    }
+    card.append(head);
+    
+    tasks.forEach(([name, person]) => {
+      const row = document.createElement("div");
+      row.className = "task";
+      const task = document.createElement("span");
+      task.className = "task-name";
+      task.textContent = name;
+      const assigned = document.createElement("span");
+      assigned.className = "person" + (person === "No one" ? " none" : "");
+      assigned.textContent = person;
+      row.append(task, assigned);
+      card.append(row);
+    });
+    grid.append(card);
+  });
+}
+
+$("startDate").value = getStart();
+
+$("applyDate").addEventListener("click", () => {
+  if(!$("startDate").value) return;
+  localStorage.setItem("choreStartDate", $("startDate").value);
+  render();
+});
+
+$("resetDate").addEventListener("click", () => {
+  localStorage.removeItem("choreStartDate");
+  $("startDate").value = BASE_DATE;
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
